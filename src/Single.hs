@@ -1,4 +1,5 @@
-{-# LANGUAGE TypeOperators, DataKinds, GADTs, MultiParamTypeClasses, FlexibleInstances,  FunctionalDependencies, UndecidableInstances, EmptyCase, LambdaCase #-}
+{-# LANGUAGE TypeOperators, DataKinds, GADTs, MultiParamTypeClasses, FlexibleInstances,  FunctionalDependencies, UndecidableInstances, EmptyCase,
+ LambdaCase, RankNTypes, PolyKinds #-}
 module Single where
 
 import  Data.Type.Equality -- has defintions of symm, others
@@ -26,6 +27,10 @@ p5 SZ = Refl
 p5 (SS x) | Refl <- p5 x = Refl
 
 
+
+nat_ind :: SNat x -> f 'Z -> (forall n. f n -> f ('S n)) -> f x 
+nat_ind SZ base step = base
+nat_ind (SS x) base step = step (nat_ind x base step)
 -- using the ordinary inequality type of singletons. Maybe we should reflect to a oprositional inqueality
 
 simpord :: SBool ((Lit 0) <= (Lit 1))
@@ -152,6 +157,75 @@ plus_comm (SS x) (SS y) (CaseS p) | (CaseS p'') <- plus_comm x (SS y) p, p''' <-
 -- plus_comm (SS x) (SS y) (CaseS p) = CaseS _
 
 
+id_def :: (Id x) :~: x
+id_def = Refl
+
+id_def' :: (IdSym0 @@ x) :~: x
+id_def' = Refl
+
+const_def :: (ConstSym0 @@ x @@ y) :~: x
+const_def = Refl
+
+const_def' :: (ConstSym1 x @@ y) :~: x
+const_def' = Refl
+
+
+-- proving functor laws.
+-- SMaybe x -> (FMap (g :. f) x) :~: (FMap g) (FMap f x))
+
+-- Elem predicate
+-- there is Elem in sList as a Bool valued function
+data Elem' a xs where
+   Here :: Elem' a (a : xs)
+   There :: Elem' a xs -> Elem' a (b : xs) 
+
+simp :: Elem' (Lit 1) '[Lit 1]
+simp = Here
+
+simp2 :: Elem' (Lit 1) '[Lit 2, Lit 1]
+simp2 = There Here
+
+-- there is also an All in foldable
+data All' p xs where
+   AllNil :: All' p '[]
+   AllCons :: (p a) -> All' p xs -> All' p (a : xs)
+-- HList vs SList. Kind of similar, except SCons takes a Sing, and HList doesn't
+
+-- Rationals
+
+{-
+
+can we use sbv via the [Bool] -> (forall a. Sing a -> r) -> r interface?
+I don't think so. It isn't part of the resolution mechanism
+
+There are also Singleton MonadPlus instances.
+
+auto (ctx) (a -> b)
+
+Auto [[goal]]
+
+
+-- you can add stuff globally by extending the hint database like so.
+class Auto (SNat ('S a))
+   auto ctx = SS (auto ctx @a)
+class Auto (SNat 'Z)
+   auto ctx = SZ
+
+
+class Auto (a -> b)
+   auto ctx = \x -> auto (x : ctx) @b
+
+class Auto (a,b) 
+   auto ctx = (auto ctx @a, auto ctx @b)
+
+class SearchCtx ctx b where
+   search (ctx )
+
+-}
+
+-- function extensionality, ghc is not happy
+-- extensionality :: (forall x. (f @@ x) :~: (g @@ x)) -> f :~: g
+-- extensionality = undefined
 
 {-
 
@@ -171,5 +245,17 @@ s -> (a, b -> t)
 
 template haskell based auto?
 
+or Auto typeclass
+Auto ctx goal fuel
+
+needs hlist to hold everything in context. You need to add everything to context manually. Constructors, etc.
+ we don't get partial solves. template haskell might
+
+ need mutiple branches of the search ,with multiple possible goals per branch
+ Many branches may share goals. so maybe splitting it up liek this isn't wise.
+
+
+trything :: (forall a. a -> a) -> (Bool, Maybe b)
+trything f = (f True, f Nothing)
 -}
 
