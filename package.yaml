@@ -31,6 +31,7 @@ library:
   - -rtsopts
   - -with-rtsopts=-N
   - -Wincomplete-patterns
+  - -ddump-splices
 
 executables:
   singleberg-exe:

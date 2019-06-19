@@ -73,15 +73,46 @@ data NatLE a b where
     LERefl :: NatLE a a
     LESucc :: NatLE a b -> NatLE a (S b)
 
+-- compose + LERefl makes NatLE a catgoery
 transle :: NatLE a b -> NatLE b c -> NatLE a c
 transle p LERefl = p
 -- transle LERefl p = p
 transle p (LESucc p') | p'' <- transle p p' = LESucc p''
 
+{-
+instance Category NatLE where
+    (.) = flip transle
+    id = LERefl
+    -}
+
 zerole :: SNat a -> NatLE Z a
 zerole SZ = LERefl
 zerole (SS x) = LESucc (zerole x)
 
+{-
+-- yikes. The higher order singleton is pain itself.
+-- maybe I should be proving in a type family?
+-- type families do not check for incomplete patterns?
+type family LEUnique :: forall a ->    where
+
+-- ooh. That ryan gl scott patch might be reall nice here.
+
+le_unique :: SNatLE (le :: 'NatLE m n) ->  SNatLE (le' :: 'NatLE m n) -> le :~: le'
+le_unique
+
+    -}
+-- indirect equality
+-- type Iso a b = (a -> b, b -> a)
+--  SNat m -> SNat n -> (forall k. Iso (NatLE k m) (NatLE k n) -> m :~: n
+
+
+{-
+le_eq ::  SNat m -> SNat n -> NatLE m n -> NatLE n m -> m :~: n
+le_eq _ _ LERefl _ = Refl
+le_eq _ _ (LESucc p) (LESucc p') | Refl <- le_eq p p' = Refl 
+
+-}
+-- an the other cases are impossible, but this is probably not obvious yet to the compiler
 
 data Even n where
    EZero :: Even Z
@@ -257,5 +288,45 @@ needs hlist to hold everything in context. You need to add everything to context
 
 trything :: (forall a. a -> a) -> (Bool, Maybe b)
 trything f = (f True, f Nothing)
+
+
+intervals
+
+data SInterval l d where -- l is lower bound. l + d is the upper. automatically 
+   SInterval :: SInterval n m
+
+-- alternative
+data Interval m d where
+   Point :: Interval m m
+   Inc :: Interval m n -> Interval m ('S n)
+
+-- could have a cnaonical ordering of ExtL ExtR if it helps.
+-- probably easier. Strange to be asymmettric though
+data SubSet i j where
+   IRefl :: SubSet (Interval i i) (Interval i i) 
+   ExtL :: SubSet (Interval m l) (Interval k l) -> SubSet (Interval ('S m) l) (Interval k l)
+   ExtR :: SubSet (Interval m n) (Interval k l) -> SubSet (Interval m n) (Interval k ('S l)
+
+So a proof will always be of the form ExtR ... ExtL ExtL ... IRefl
+Alternative
+
+data SubSet i j where
+  SubSet :: (i <= j) -> (k <= l)  -> SubSet (Interval j k) (Interval i l) 
+
+i c= j is decidable
+
+
+Lists as finite sets of integers. 
+
+A set predicate as
+SNat n -> SBool n
+A set predicate as
+'Nat ~> 'Bool
+
+
+tewo dimensional space
+V2 n m
+
+
 -}
 
