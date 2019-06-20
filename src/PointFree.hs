@@ -32,6 +32,21 @@ import Data.Singletons
   test1 = demote @(FstSym0 :: ((Bool,Bool) ~> Bool))
 -}
 
+{-
+Prologful relations rather than functions. In Coq, Agda etc sometimes it is preferable to build a relational data type rather than a functiona specification.
+For exmaple in a machine intepreter. In Software foundations they show both styles.
+
+We can build data type copies of functions Many of the below combinators are.
+RId is just a reified id
+RNat is just a reified id :: Bool -> Bool
+
+
+
+
+
+
+-}
+
 data Nat = Z | S Nat
 -- ? how is this different from RId specialized to 'Nat? Well I can destrcut on it. I suppose I can prove things by induction now?
 -- does this make any sense at all?
@@ -88,6 +103,17 @@ data RConverse k a b where -- Shorten to RCon?
 newtype RMeet k k' a b = RMeet (k a b, k' a b)
 type k /\ k' = RMeet k k'  
 
+meet_assoc :: RMeet k (RMeet k' k'') a b -> RMeet (RMeet k k') k'' a b
+meet_assoc (RMeet (k, (RMeet (k',k'')))) = RMeet (RMeet (k,k'), k'')
+
+{-
+meet_comm
+meet_assoc'
+
+join_assoc
+join_comm
+join_assoc'
+-}
 newtype RJoin k k' a b = RJoin (Either (k a b) (k' a b))
 
 type k \/ k' = RJoin k k'  
@@ -213,6 +239,10 @@ subCompose (RSub f) (RSub g) = RSub (f . g)
 subId :: f :-> f
 subId = RSub id
 
+
+compose_mono :: (p :-> q) -> (g :-> j) -> ( (p <<< g) :-> (q <<< j))
+compose_mono (RSub f) (RSub h) = RSub $ \(RCompose p g) -> RCompose (f p) (h g) 
+
 p1 :: RSub (RMeet k k') k
 p1 = RSub (\(RMeet (k, k')) -> k)
 
@@ -235,21 +265,58 @@ p6 = RSub (\(RConverse (RConverse k)) -> k)
 p7 :: RSub k (RConverse (RConverse k))
 p7 = RSub (\k -> (RConverse (RConverse k)))
 -- ? These are different   
-type RSub' k k' a b = k a b -> k' a b
+-- type RSub' k k' a b = k a b -> k' a b
+
+-- nothin
+data RBottom a b
+
+-- anything goes
+data RTop a b where
+    RTop :: RTop a b
+
+newtype Ker r a b = Ker (RCompose (RConverse r) r a b)
+ker r = RCompose (RConverse r) r
+newtype Img r a b = Img (RCompose r (RConverse r) a b)
+img r = RCompose r (RConverse r)
 
 
--- indirect eq. Got an Iso feel. just because it has such weird quantification. A quantified expression over a * -> * -> * type
-type Eq k k' = forall x. (RCompose x k) (RCompose x k') 
+type Simple f = (Img f) :-> RId
+type Entire f = RId :-> (Ker f)
+type Function' f = (Simple f, Entire f)
 
+
+data Trans k a b where
+    Trans :: k (a,b) c -> Trans k a (b,c)
+untrans :: Trans k a (b,c) -> k (a,b) c
+untrans (Trans k) = k
+
+data UnTrans k a b where
+    UnTrans :: k a (b,c) -> UnTrans k (a,b) c
+
+trans :: UnTrans k (a,b) c -> k a (b,c)
+trans (UnTrans k) = k
+{-
+
+Shunting rules
+Function equaltity rule - For function RSub == Eq
+
+-}
 p8 :: RSub (RCompose RId k) k
 p8 = RSub (\(RCompose RId k) -> k)
 
 p9 :: RSub k (RCompose RId k)
 p9 = RSub (\k -> (RCompose RId k))
--- equivlance of the two formulations.
---p8 :: Eq k k' -> (RSub k  k', RSub k' k)
---p8 f = 
---p9 :: (RSub k k', RSub k' k) -> Eq k k'
+
+-- indirect eq. Got an Iso feel. just because it has such weird quantification. A quantified expression over a * -> * -> * type
+-- such yoneda nonsense
+type RSub' k k' = forall x. (x :-> k) -> (x :-> k')
+p10 :: RSub' k k' -> k :-> k'
+p10 f = f subId
+
+converse_mono :: (Con k :-> Con k') -> (k :-> k')
+converse_mono (RSub f) = RSub $ \k -> let (RConverse k') = f (RConverse k) in k'
+
+
 
 -- rpar :: k a b -> k' c d -> _ k k'  
 rpar f g =  RFan (RCompose f RFst) (RCompose g RSnd)
@@ -372,5 +439,57 @@ data PF a b where
     Split :: PF a b -> PF c b -> PF (a :+: c) b
     Lft :: PF a (a :+: b)
     Rgt :: PF b (a :+: b)
+
+
+class PF f where
+
+class Category PF where
+    id = Id
+    (.) = Comp
+-- finally tagless categorical dsl
+
+-- transformation
+data Ctx = PreCompFst | PreCompSnd | Other | IsFan
+data CtxWrap ctx k a b = CtxWrap ctx (k a b)
+
+instance Category (CtxWrap k) where
+    id = CtxWrap Other id
+    (CtxWrap PreCompFst ) . (CtxWrap _ ) = CtxWrap   .
+
+
+data IsId = IsId | Other
+
+-- retagging?
+
+instance Categroy k => Category (CtxWrap (IsId) k) where
+    id = CtxWrap IsId id
+    (CtxWrap IsId _) . f = f
+    g . (CtxWrap isId _) g
+    (CtxWrap _ g) (CtxWrap _ f) = CtxWrap Other (g . f) 
+
+newtype CtxWrap' ctx k a b = CtxWrap (ctx -> k a b) 
+
+
+data Ctx = IsFst | IsSnd
+
+instance Cartesian k => Cartesian (CtxWrap' Ctx k)
+   fan f g = 
+   
+
+fusefan (Comp Fst (Fan f g)) = f
+fusefan (Comp Snd (Fan f g)) = g
+
+
+I was conisdering a version of this stuff without the points. Perhaps without body?
+
+data Compose k k'
+data Snd
+data Fst
+data Fan
+data Cata k
+data Meet k k'
+data Join k k'
+
+or perhaps these might be the datakind lifted pieces of the above pf data type
 
 -}
